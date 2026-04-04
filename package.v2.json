@@ -1,0 +1,16 @@
+{
+  "Prowlarr": {
+    "id": "Prowlarr",
+    "name": "Prowlarr",
+    "version": "1.0",
+    "description": "通过 Prowlarr 扩展 BT 搜索，每个 Indexer 独立出现在搜索站点列表，可单独启用/禁用",
+    "author": "AndyWangM",
+    "author_url": "https://github.com/AndyWangM",
+    "icon": "https://raw.githubusercontent.com/AndyWangM/MoviePilot-PluginsV2/main/plugins.v2/prowlarr/icon.png",
+    "history": {
+      "v1.0": "初始版本，支持 Prowlarr Indexer 接入搜索链路"
+    },
+    "repo": "AndyWangM/MoviePilot-PluginsV2",
+    "category": "搜索"
+  }
+}
