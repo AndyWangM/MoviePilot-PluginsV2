@@ -21,7 +21,7 @@ class Prowlarr(_PluginBase):
     # ===== 插件元数据 =====
     plugin_name = "Prowlarr"
     plugin_desc = "通过 Prowlarr 扩展 BT 搜索，每个 Indexer 独立出现在搜索站点列表，可单独启用/禁用"
-    plugin_version = "1.0"
+    plugin_version = "1.1"
     plugin_icon = "https://raw.githubusercontent.com/AndyWangM/MoviePilot-PluginsV2/main/plugins.v2/prowlarr/icon.png"
     plugin_order = 15
     plugin_author = "AndyWangM"
@@ -154,20 +154,25 @@ class Prowlarr(_PluginBase):
 
     def _fetch_indexers_from_prowlarr(self) -> List[dict]:
         """
-        调用 GET /api/v1/indexerstats 获取 Prowlarr 中所有已配置的 indexer。
+        调用 GET /api/v1/indexer 获取 Prowlarr 中所有已配置的 indexer。
+        注意：/api/v1/indexerstats 只返回有统计记录的 indexer（用过的才有），
+              /api/v1/indexer 才是全量列表。
         返回：[{"id": int, "name": str}, ...]
         """
-        url = f"{self._host}/api/v1/indexerstats"
+        url = f"{self._host}/api/v1/indexer"
         data = self._request_get(url)
-        if not data or "indexers" not in data:
-            logger.warning("[Prowlarr] indexerstats 返回数据异常或为空")
+        if not isinstance(data, list):
+            logger.warning(f"[Prowlarr] /api/v1/indexer 返回数据异常: {type(data)}")
             return []
 
         result = []
-        for item in data.get("indexers", []):
-            idx_id = item.get("indexerId")
-            idx_name = item.get("indexerName") or f"Indexer-{idx_id}"
+        for item in data:
+            idx_id = item.get("id")
+            idx_name = item.get("name") or f"Indexer-{idx_id}"
             if idx_id is None:
+                continue
+            # 只包含启用的 indexer
+            if not item.get("enable", True):
                 continue
             result.append({"id": idx_id, "name": idx_name})
 
