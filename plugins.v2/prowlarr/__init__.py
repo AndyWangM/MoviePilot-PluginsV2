@@ -21,7 +21,7 @@ class Prowlarr(_PluginBase):
     # ===== 插件元数据 =====
     plugin_name = "Prowlarr"
     plugin_desc = "通过 Prowlarr 扩展 BT 搜索，每个 Indexer 独立出现在搜索站点列表，可单独启用/禁用"
-    plugin_version = "1.1"
+    plugin_version = "1.2"
     plugin_icon = "https://raw.githubusercontent.com/AndyWangM/MoviePilot-PluginsV2/main/plugins.v2/prowlarr/icon.png"
     plugin_order = 15
     plugin_author = "AndyWangM"
@@ -285,13 +285,19 @@ class Prowlarr(_PluginBase):
     # ===== Indexer 注册 =====
 
     def _refresh_indexers(self):
-        """拉取最新 indexer 列表并注册到 SitesHelper（线程安全）。"""
+        """
+        拉取最新 indexer 列表，写入 DB 并注册到 SitesHelper（线程安全）。
+        写入 DB 的目的：让 Prowlarr 站点出现在"搜索站点"设置页（前端从 GET /site/ 读取），
+        用户勾选后 IndexerSites 里存的整数 DB ID 才能匹配 get_indexers() 返回的 id 字段。
+        """
         if not self._host or not self._api_key:
             return
 
         with self._lock:
             try:
                 from app.helper.sites import SitesHelper
+                from app.db.site_oper import SiteOper
+
                 indexers = self._fetch_indexers_from_prowlarr()
                 if not indexers:
                     logger.warning("[Prowlarr] 未获取到任何 indexer，跳过注册")
@@ -303,14 +309,42 @@ class Prowlarr(_PluginBase):
                 for item in indexers:
                     idx_id = item["id"]
                     idx_name = item["name"]
+                    # 虚拟 domain：prowlarr-{indexer_id}.local
                     domain = f"{self._DOMAIN_PREFIX}{idx_id}{self._DOMAIN_SUFFIX}"
+                    display_name = f"Prowlarr - {idx_name}"
+
+                    # 1. 注册到 SitesHelper 内存，使搜索链路可识别
                     sites_helper.add_indexer({
                         "id": f"prowlarr_{idx_id}",
-                        "name": f"Prowlarr - {idx_name}",
+                        "name": display_name,
                         "domain": domain,
-                        "public": True,   # public=True → 无需 DB 配置即出现在站点列表
+                        "public": False,  # 设为 False，让 get_indexers() 依赖 DB 记录
                         "proxy": self._proxy,
                     })
+
+                    # 2. 写入 DB，使站点出现在设置页"搜索站点"列表
+                    try:
+                        site_oper = SiteOper()
+                        existing = site_oper.get_by_domain(domain)
+                        if not existing:
+                            ok, msg = site_oper.add(
+                                name=display_name,
+                                domain=domain,
+                                url=f"https://{domain}/",
+                                public=0,
+                                is_active=True,
+                                pri=100,
+                            )
+                            if ok:
+                                logger.info(f"[Prowlarr] 已写入 DB：{display_name} ({domain})")
+                            else:
+                                logger.debug(f"[Prowlarr] DB 写入跳过（{msg}）: {display_name}")
+                        else:
+                            # 如果名称变了，更新
+                            if existing.name != display_name:
+                                site_oper.update(existing.id, {"name": display_name})
+                    except Exception as db_err:
+                        logger.warning(f"[Prowlarr] 写入 DB 失败（{display_name}）: {db_err}")
 
                 logger.info(f"[Prowlarr] 已注册 {len(indexers)} 个 indexer 到搜索站点列表")
             except Exception as e:
