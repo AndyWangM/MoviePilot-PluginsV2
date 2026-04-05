@@ -21,7 +21,7 @@ class Prowlarr(_PluginBase):
     # ===== 插件元数据 =====
     plugin_name = "Prowlarr"
     plugin_desc = "通过 Prowlarr 扩展 BT 搜索，每个 Indexer 独立出现在搜索站点列表，可单独启用/禁用"
-    plugin_version = "1.2"
+    plugin_version = "1.3"
     plugin_icon = "https://raw.githubusercontent.com/AndyWangM/MoviePilot-PluginsV2/main/plugins.v2/prowlarr/icon.png"
     plugin_order = 15
     plugin_author = "AndyWangM"
