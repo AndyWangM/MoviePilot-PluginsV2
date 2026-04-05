@@ -90,7 +90,33 @@ class Prowlarr(_PluginBase):
             return {}
         return {
             "search_torrents": self.search_torrents,
+            "async_search_torrents": self.async_search_torrents,
         }
+
+    def _handle_site(self, site: dict, keyword: str, mtype, page: int):
+        """
+        公共逻辑：判断是否为本插件站点，是则搜索，否则返回 None。
+        """
+        if not site:
+            return None
+        domain = site.get("domain", "")
+        if not (domain.startswith(self._DOMAIN_PREFIX) and domain.endswith(self._DOMAIN_SUFFIX)):
+            return None  # 不是本插件的站点，交给系统模块
+        if not self._host or not self._api_key:
+            return []
+        try:
+            middle = domain[len(self._DOMAIN_PREFIX):-len(self._DOMAIN_SUFFIX)]
+            indexer_id = int(middle)
+        except (ValueError, IndexError):
+            logger.warning(f"[Prowlarr] 无法从 domain 解析 indexer_id: {domain}")
+            return []
+        return self._do_search(
+            indexer_id=indexer_id,
+            indexer_name=site.get("name", ""),
+            keyword=keyword or "",
+            mtype=mtype,
+            page=page or 0,
+        )
 
     def search_torrents(
         self,
@@ -99,36 +125,18 @@ class Prowlarr(_PluginBase):
         mtype: Optional[MediaType] = None,
         page: Optional[int] = 0,
     ) -> Optional[List[TorrentInfo]]:
-        """
-        胁持系统搜索链。
-        - 本插件管理的虚拟站点：向 Prowlarr 发起搜索，返回结果列表
-        - 其他站点：返回 None，让系统模块继续处理
-        """
-        if not site:
-            return None
+        """同步搜索入口（兼容旧链路）。"""
+        return self._handle_site(site, keyword, mtype, page or 0)
 
-        domain = site.get("domain", "")
-        if not (domain.startswith(self._DOMAIN_PREFIX) and domain.endswith(self._DOMAIN_SUFFIX)):
-            return None  # 不是本插件的站点，交给系统模块
-
-        if not self._host or not self._api_key:
-            return []
-
-        # 从虚拟 domain 解析 indexer_id
-        try:
-            middle = domain[len(self._DOMAIN_PREFIX):-len(self._DOMAIN_SUFFIX)]
-            indexer_id = int(middle)
-        except (ValueError, IndexError):
-            logger.warning(f"[Prowlarr] 无法从 domain 解析 indexer_id: {domain}")
-            return []
-
-        return self._do_search(
-            indexer_id=indexer_id,
-            indexer_name=site.get("name", ""),
-            keyword=keyword or "",
-            mtype=mtype,
-            page=page or 0,
-        )
+    async def async_search_torrents(
+        self,
+        site: dict,
+        keyword: str = None,
+        mtype: Optional[MediaType] = None,
+        page: Optional[int] = 0,
+    ) -> Optional[List[TorrentInfo]]:
+        """异步搜索入口（主搜索链路调用此方法）。Prowlarr 请求本身是同步的，直接调用。"""
+        return self._handle_site(site, keyword, mtype, page or 0)
 
     # ===== Prowlarr API =====
 
