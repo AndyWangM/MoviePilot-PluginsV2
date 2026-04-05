@@ -156,6 +156,8 @@ class Prowlarr(_PluginBase):
                 return resp.json()
             elif resp:
                 logger.warning(f"[Prowlarr] HTTP {resp.status_code} — {url}")
+            else:
+                logger.warning(f"[Prowlarr] 请求无响应（连接失败或超时）— {url}")
         except Exception as e:
             logger.error(f"[Prowlarr] 请求异常 {url}：{e}")
         return None
@@ -221,7 +223,10 @@ class Prowlarr(_PluginBase):
             data = self._request_get(url)
 
             if not isinstance(data, list):
-                logger.warning(f"[Prowlarr] {indexer_name} 搜索返回格式异常: {type(data)}")
+                if data is None:
+                    logger.warning(f"[Prowlarr] {indexer_name} 请求失败（无响应），可能是 Prowlarr 服务或该 Indexer 不可用")
+                else:
+                    logger.warning(f"[Prowlarr] {indexer_name} 搜索返回格式异常: {type(data)} — {str(data)[:200]}")
                 return []
 
             results: List[TorrentInfo] = []
